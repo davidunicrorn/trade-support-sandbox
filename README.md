@@ -74,6 +74,10 @@ tools/
 solutions/
   recon_check_solutions.sql   worked SQL answers + expected results
   log_triage_solutions.md     grep/awk answers
+docs/
+  glossary/
+    fix_tags.md               FIX 4.2 tags, message types, session recovery, interview questions
+    trade_lifecycle.md        order-to-settlement terms, products, UK/EU regulation, support vocabulary
 ```
 
 ---
@@ -168,6 +172,13 @@ Answers and expected output: `solutions/log_triage_solutions.md`.
 - [ ] **12. Session-level rejects** - find both `35=3` messages, read the `373` reason codes with `fix_parser.py`, and relate one of them to the `chronyd` entries in the system log.
 - [ ] **13. Broker reject trail** - find the `39=8` ExecutionReport in the FIX log, read its `103` and `58` fields, and tie it back to the SQL result from exercise 5.
 - [ ] **14. Stretch** - for every order in `trading.db` with status `2`, check that the FIX log contains a `39=2` report. Which shell/SQL combination would you use? What would a missing one mean?
+
+---
+
+## Study aids
+
+- [`docs/glossary/fix_tags.md`](docs/glossary/fix_tags.md) - FIX tags and message types, 39 vs 150, session recovery, likely interview questions.
+- [`docs/glossary/trade_lifecycle.md`](docs/glossary/trade_lifecycle.md) - order-to-settlement terminology, products, UK/EU regulation, support vocabulary, and a map from each exercise to its real-world scenario.
 
 ---
 

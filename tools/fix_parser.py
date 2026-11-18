@@ -54,13 +54,13 @@ ENUMS = {
     39: {"0": "New", "1": "PartiallyFilled", "2": "Filled", "3": "DoneForDay", "4": "Canceled",
          "5": "Replaced", "6": "PendingCancel", "7": "Stopped", "8": "Rejected", "9": "Suspended",
          "A": "PendingNew", "B": "Calculated", "C": "Expired", "E": "PendingReplace"},
-    # FIX 4.2 reports fills as 1/2. 'F' (Trade) only exists from FIX 4.4, but some venues
+    # FIX 4.2 reports fills as 1/2. 'F' (Trade) only exists from FIX 4.3, but some venues
     # send it on 4.2 sessions, so we translate it too.
     150: {"0": "New", "1": "PartialFill", "2": "Fill", "3": "DoneForDay", "4": "Canceled",
           "5": "Replace", "6": "PendingCancel", "7": "Stopped", "8": "Rejected", "9": "Suspended",
           "A": "PendingNew", "B": "Calculated", "C": "Expired", "D": "Restated",
-          "E": "PendingReplace", "F": "Trade (FIX 4.4+)", "G": "TradeCorrect (FIX 4.4+)",
-          "H": "TradeCancel (FIX 4.4+)", "I": "OrderStatus (FIX 4.4+)"},
+          "E": "PendingReplace", "F": "Trade (FIX 4.3+)", "G": "TradeCorrect (FIX 4.3+)",
+          "H": "TradeCancel (FIX 4.3+)", "I": "OrderStatus (FIX 4.3+)"},
     54: {"1": "Buy", "2": "Sell", "3": "BuyMinus", "4": "SellPlus", "5": "SellShort",
          "6": "SellShortExempt"},
     40: {"1": "Market", "2": "Limit", "3": "Stop", "4": "StopLimit"},
