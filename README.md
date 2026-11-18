@@ -80,6 +80,8 @@ docs/
   glossary/
     fix_tags.md               FIX 4.2 tags, message types, session recovery, interview questions
     trade_lifecycle.md        order-to-settlement terms, products, UK/EU regulation, support vocabulary
+  interview/
+    mock_incidents.md         six incident scenarios with a triage framework and model answers (spoilers)
 ```
 
 ---
@@ -141,7 +143,7 @@ python -m sqlite3 db/trading.db                                  # Python 3.12+:
 python -m sqlite3 db/trading.db "SELECT ord_status, COUNT(*) FROM orders GROUP BY 1;"
 ```
 
-Any SQLite GUI (DBeaver, DB Browser for SQLite, the VS Code SQLite extension) also works - just open `db/trading.db`.
+A GUI is the easiest way to read results. **DB Browser for SQLite** is recommended: install it (`winget install DBBrowserForSQLite.DBBrowserForSQLite`), choose *File > Open Database Read Only*, pick `db/trading.db`, then use the *Execute SQL* tab (Ctrl+Enter to run). You still write all the SQL yourself; the GUI just shows a readable grid with headers. Close the database in the app before re-running `seed_db.py`, because the script deletes and rebuilds the file. DBeaver and the VS Code SQLite extension also work.
 
 ### 4. Linux log triage on Windows
 
@@ -191,6 +193,7 @@ file something you can talk through in an interview. Look for `WHY` in `db/seed_
 
 - [`docs/glossary/fix_tags.md`](docs/glossary/fix_tags.md) - FIX tags and message types, 39 vs 150, session recovery, likely interview questions.
 - [`docs/glossary/trade_lifecycle.md`](docs/glossary/trade_lifecycle.md) - order-to-settlement terminology, products, UK/EU regulation, support vocabulary, and a map from each exercise to its real-world scenario.
+- [`docs/interview/mock_incidents.md`](docs/interview/mock_incidents.md) - practise explaining each issue as a calm, structured triage answer (do the exercises first: it contains spoilers).
 
 ---
 
