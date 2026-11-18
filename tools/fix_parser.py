@@ -19,6 +19,20 @@ Usage:
 Every message is also checked against its own BodyLength (tag 9) and CheckSum
 (tag 10); mismatches usually mean a message was hand-edited, truncated, or
 mangled in transit.
+
+WHY IT IS BUILT THIS WAY (design notes - useful when explaining the project)
+    * Plain standard library, one file. On a support desk you often have only a
+      jump host with Python and no pip access, so the tool must run anywhere.
+    * It accepts "|", "^A" or real SOH. Logs and chat tools replace the invisible
+      SOH character with something printable, and you never know which.
+    * It finds the message inside any log line (looks for "8=FIX.4.x") so you can
+      feed it a raw gateway log, a grep result, or a pasted line unchanged.
+    * It translates codes but also shows the raw value ("39 = 2 -> Filled"). You
+      need both: the raw code to search logs and docs, the name to understand it.
+    * The integrity check exists because a corrupt BodyLength/CheckSum is a real
+      cause of session rejects, and a hand-edited message in a ticket is a trap.
+    * --filter and --compact exist because the daily task is rarely "decode one
+      message"; it is "show me everything for this order" and "scan 10,000 lines".
 """
 
 import argparse
@@ -30,6 +44,8 @@ SOH = "\x01"
 
 # --------------------------------------------------------------------------- #
 # FIX 4.2 data dictionary (only the tags this sandbox uses, plus common extras)
+# WHY a hand-written dictionary instead of a FIX library: a library hides the thing you are
+# trying to learn. Reading this table is itself revision, and it is easy to extend.
 # --------------------------------------------------------------------------- #
 TAG_NAMES = {
     1: "Account", 6: "AvgPx", 7: "BeginSeqNo", 8: "BeginString", 9: "BodyLength", 10: "CheckSum",
@@ -100,7 +116,12 @@ FIX_START = re.compile(r"8=FIX\.\d\.\d|8=FIXT\.\d\.\d")
 
 
 def normalise(text):
-    """Return the message with a real SOH delimiter, whatever the input used ('|', ^A or SOH)."""
+    """Return the message with a real SOH delimiter, whatever the input used ('|', ^A or SOH).
+
+    WHY convert to real SOH first: BodyLength and CheckSum are defined over the real delimiter
+    (1 byte, value 1). Counting '|' (value 124) would give the wrong checksum.
+    Limitation: a free-text value that itself contains '|' would be split wrongly.
+    """
     text = text.replace("^A", SOH)
     if SOH not in text:
         text = text.replace("|", SOH)
@@ -119,7 +140,11 @@ def split_fields(norm):
 
 
 def validate(norm):
-    """Check BodyLength (9) and CheckSum (10). Returns a list of problems (empty = healthy)."""
+    """Check BodyLength (9) and CheckSum (10). Returns a list of problems (empty = healthy).
+
+    WHY both: CheckSum catches any changed byte; BodyLength catches truncation or inserted
+    fields. Together they are how a FIX engine decides a message is intact before processing it.
+    """
     problems = []
     pos10 = norm.rfind(SOH + "10=")
     pos9 = norm.find(SOH + "9=")
@@ -155,7 +180,11 @@ def extract_messages(lines):
 # Output
 # --------------------------------------------------------------------------- #
 def matches(fields, filters):
-    """True if the message contains every requested TAG=VALUE pair."""
+    """True if the message contains every requested TAG=VALUE pair.
+
+    WHY AND semantics: each extra --filter narrows the result (e.g. 35=8 AND 39=8 = broker
+    rejects), which matches how you drill down during an incident.
+    """
     return all(any(str(t) == tag and v == val for t, v in fields) for tag, val in filters)
 
 
@@ -163,7 +192,7 @@ def summarise(fields):
     """One-line plain-English summary of a message, for --compact and the message header."""
     d = {}
     for t, v in fields:
-        d.setdefault(t, v)                                  # first occurrence wins
+        d.setdefault(t, v)    # first occurrence wins; repeating groups are not summarised (keep it simple)
     mt = d.get(35, "?")
     side, sym = meaning(54, d.get(54, "")) or d.get(54, ""), d.get(55, "")
     if mt == "D":
@@ -178,6 +207,8 @@ def summarise(fields):
         if 17 in d:
             parts.append(f"execid={d[17]}")
         if d.get(43) == "Y":
+            # Flagged loudly because a PossDup that gets re-processed is the root cause of
+            # duplicate fills (sandbox Exercise 3).
             parts.append("**POSSDUP**")
         if 58 in d:
             parts.append(f'"{d[58]}"')

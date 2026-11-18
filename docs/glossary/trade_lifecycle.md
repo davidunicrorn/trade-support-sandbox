@@ -1,7 +1,7 @@
 # Trade Lifecycle & Trade Support Glossary (London focus)
 
 The vocabulary behind a trade support / exchange operations role, in the order a trade moves through the firm.
-Where a term maps to the sandbox, it says so. Regulatory details change - treat dates as "check before quoting".
+Where a term maps to the sandbox, it says so. Regulatory details change - treat dates as "check before quoting". Key dates in this file were checked against FCA, GOV.UK, ESMA and FIX reference sources on 2026-11-18.
 
 ---
 
@@ -71,7 +71,8 @@ fixes breaks between systems.
 | Settlement | Final exchange of securities and cash |
 | DvP | Delivery versus Payment - securities and cash move together, removing principal risk |
 | Trade date (T) / settle date | Day of execution / day of delivery |
-| Settlement cycle | US equities T+1 (since May 2024). UK/EU equities currently T+2, with a move to T+1 planned for October 2027. FX spot T+2 (USD/CAD T+1). The sandbox uses T+1 equities/derivatives, T+2 FX spot |
+| Settlement cycle | US equities T+1 since May 2024. UK, EU and Switzerland move from T+2 to **T+1 on 11 October 2027** (EU legislation adopted; UK via a statutory instrument under UK CSDR). FX spot is T+2 (USD/CAD T+1). The sandbox uses T+1 for equities/derivatives and T+2 for FX spot |
+| T+1 programme (UK/EU) | A live topic at London firms: allocations and confirmations must be faster (EU first deadline 7 Dec 2026 for electronic, standardised allocation/confirmation), settlement instructions sent earlier, and industry-wide testing windows run through 2027 (the first is 1-12 Feb 2027). Expect interview questions on what shrinks: the window to fix breaks and fund/lend stock |
 | Settlement fail | Delivery did not happen on time (missing stock/cash, wrong SSI, unmatched instruction). Chased daily; EU/UK CSDR brings cash penalties and buy-ins |
 | Buy-in | Buyer purchases the securities in the market at the failing seller's cost |
 | Pending / settled | Settlement status in the sandbox (`settle_status`) |
@@ -110,10 +111,10 @@ fixes breaks between systems.
 |------|---------|
 | FCA / PRA | UK conduct regulator / prudential regulator |
 | MiFID II / MiFIR (UK version) | Rules on transparency, best execution, transaction reporting, clock sync, record keeping |
-| Transaction reporting | Report every executed trade to the FCA (via an ARM) by the next working day; errors must be corrected and escalated |
+| Transaction reporting | Report every executed trade in a reportable instrument to the FCA (directly or via an ARM) as quickly as possible and no later than 23:59 on the next working day (T+1). Errors must be corrected and escalated. The FCA has consulted on a new reporting schema from 3 April 2028 (CP26/34, still a proposal) |
 | ARM / APA | Approved Reporting Mechanism / Approved Publication Arrangement |
 | Best execution | Duty to get the best result for the client; evidenced with data |
-| Clock synchronisation (RTS 25) | Business clocks traceable to UTC within set tolerance - why the 35=3 SendingTime reject matters |
+| Clock synchronisation (RTS 25) | Business clocks must stay within a maximum divergence from UTC: 100 microseconds for high-frequency algorithmic trading and the fastest venues, 1 millisecond for most other activity, 1 second for voice/RFQ-by-hand. Separate from, and much stricter than, a FIX session's own SendingTime tolerance (often tens of seconds; the sandbox broker is configured strictly, which is why a 2.4 s clock error produces a 35=3 reject). Both are why NTP health is monitored |
 | EMIR | Derivatives clearing, margining and reporting rules (EU and UK versions) |
 | CSDR | EU settlement discipline: penalties and buy-ins for fails |
 | Market abuse (MAR) | Insider dealing/manipulation; support staff may need to escalate suspicious activity |

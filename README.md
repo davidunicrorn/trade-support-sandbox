@@ -53,9 +53,11 @@ something went wrong, a matching line in the system log. Following one `ClOrdID`
 | `orders`      | 51   | OMS order state: FIX status codes (`ord_status` = tag 39), `filled_qty`, `avg_px`, `exchange_order_id` |
 | `executions`  | ~75  | One row per fill reported by the broker (ExecID, last qty/px). No unique constraint on `exec_id` - on purpose |
 | `settlements` | ~38  | One row per fully-filled order: settle date (T+1, FX spot T+2), price, notional |
+| `ref_ord_status`, `ref_side`, `ref_order_type` | 11 / 2 / 2 | Lookup (static) data that translates FIX codes into names - for the bonus join exercises |
 
-`orders.side`, `ord_status` and `order_type` store raw FIX codes (`1`=Buy, `2`=Filled, ...) - the code legend is at
-the top of `tools/recon_check.sql`.
+`orders.side`, `ord_status` and `order_type` store raw FIX codes (`1`=Buy, `2`=Filled, ...) exactly as they arrive on
+the wire - real ledgers do the same, and you are expected to know the codes. The code legend is at the top of
+`tools/recon_check.sql`, and the `ref_*` tables let you translate them with a `JOIN` when you want readable output.
 
 ---
 
@@ -70,7 +72,7 @@ logs/
   system_errors.log     generated - latency spikes, disconnects/reconnects, NTP, kernel noise
 tools/
   fix_parser.py         CLI: raw FIX message / log file -> readable tag/value pairs
-  recon_check.sql       the 5 SQL exercises (empty - write your answers here)
+  recon_check.sql       5 SQL exercises + 3 bonus lookup-table exercises (empty - write your answers here)
 solutions/
   recon_check_solutions.sql   worked SQL answers + expected results
   log_triage_solutions.md     grep/awk answers
@@ -158,6 +160,9 @@ Work through them in order. Try each one yourself before opening `solutions/`.
 - [ ] **3. Duplicate execution ID** - find an `exec_id` booked twice, compute the true filled quantity, and say why it was booked twice.
 - [ ] **4. Settlement discrepancy** - find the settled trade whose price/notional does not match what was executed, and name the likely keying error.
 - [ ] **5. Broker rejection** - find the `OrdStatus=8` order, compare its notional with the client's credit limit, and decide whether the reject was correct.
+- [ ] **B1. Readable status counts** - count orders per status using a `JOIN` to `ref_ord_status` instead of `CASE`; explain why a lookup table is better.
+- [ ] **B2. Open-order blotter** - list open orders with client, side, type and status names; say which one worries you most.
+- [ ] **B3. Unmapped codes** - anti-join to find status codes with no reference row, prove the check works inside a rolled-back transaction, and explain why there is deliberately no foreign key.
 
 ### Linux log triage (grep / awk)
 
@@ -174,6 +179,13 @@ Answers and expected output: `solutions/log_triage_solutions.md`.
 - [ ] **14. Stretch** - for every order in `trading.db` with status `2`, check that the FIX log contains a `39=2` report. Which shell/SQL combination would you use? What would a missing one mean?
 
 ---
+
+## Why the code and queries are commented the way they are
+
+Comments in this repo explain **why**, not just what: why the data is generated from one script, why an exercise
+matters in production, why a design choice was made (for example, no unique constraint on `exec_id`). That makes each
+file something you can talk through in an interview. Look for `WHY` in `db/seed_db.py`, `tools/fix_parser.py`,
+`tools/recon_check.sql` and the files in `solutions/`.
 
 ## Study aids
 

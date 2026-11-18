@@ -57,7 +57,7 @@ Rule of thumb: 11 is yours, 37 is theirs, 17 is per event.
 | 55 | Symbol | `AAPL`, `EUR/USD`, `ES` |
 | 167 | SecurityType | `CS` common stock, `FOR` FX, `FUT` future, `OPT` option |
 | 107 | SecurityDesc | Free-text description |
-| 200 / 201 / 202 | MaturityMonthYear / PutOrCall / StrikePrice | Derivatives: expiry, `0`=put `1`=call, strike |
+| 200 / 201 / 202 | MaturityMonthYear / PutOrCall / StrikePrice | Derivatives: expiry, `0`=put `1`=call, strike. In 4.3+ `201` and the FUT/OPT values of `167` were replaced by CFICode (tag 461); 4.2, used here, still has them |
 | 54 | Side | `1` Buy, `2` Sell (also `5` Sell short, `6` Sell short exempt) |
 | 38 | OrderQty | Original order size |
 | 40 | OrdType | `1` Market, `2` Limit, `3` Stop, `4` Stop limit |
@@ -89,6 +89,11 @@ Rule of thumb: 11 is yours, 37 is theirs, 17 is per event.
 **39 says where the order is now. 150 says what just happened.**
 A partial fill arrives as `150=1`, `39=1`; the final fill as `150=2`, `39=2`.
 A cancel confirmation is `150=4`, `39=4`. A reject is `150=8`, `39=8`.
+
+Why they look identical in 4.2: in FIX 4.1/4.2 the two fields share the same value set, so `150` and `39` usually
+match. From FIX 4.3 the fill values were removed from `150` and replaced by `F` (Trade); the fill *state* lives only in
+`39`. A partial fill in 4.3+ is therefore `150=F`, `39=1` and a full fill is `150=F`, `39=2`. This is why a parser (or an
+interviewer) that only looks at tag 150 gets confused when a counterparty upgrades FIX versions.
 
 | Code | OrdStatus (39) | ExecType (150) |
 |------|----------------|----------------|

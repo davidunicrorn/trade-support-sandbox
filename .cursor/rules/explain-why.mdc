@@ -1,0 +1,19 @@
+﻿---
+description: Explain the reasoning ("why") in comments and replies for this learning project
+alwaysApply: true
+---
+
+# Explain the why
+
+This repo is an interview-prep sandbox (trade support / exchange operations, London). The owner wants to learn from
+it and be able to explain it. When adding or editing code, SQL, docs or exercises:
+
+- Add short comments that say **why** a choice was made (design trade-off, real-world cause, what breaks otherwise),
+  not only what the code does.
+- For any new exercise or anomaly, include a `WHY:` line (why it matters in production) and, in the solutions file,
+  the expected result and the reasoning.
+- Verify factual claims (regulation, dates, FIX version behaviour) against a source before writing them; note the
+  check date for anything that changes over time.
+- Keep the project simple: standard library, SQLite, flat files. No frameworks or web UI.
+- Do not print or hard-code the five anomaly order IDs outside `solutions/` and the `--answer-key` flag.
+- After changing `db/seed_db.py`, run it and confirm the self-check prints `Done - 0 errors.`

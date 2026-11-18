@@ -23,6 +23,23 @@ hunt for them yourself (use --answer-key if you get stuck):
 Usage:
     python db/seed_db.py                # rebuild DB + logs
     python db/seed_db.py --answer-key   # ...and print the anomaly order IDs
+
+WHY IT IS BUILT THIS WAY (design notes - useful when explaining the project)
+    * One script writes the DB *and* both logs. Real incidents are only
+      investigable because several systems tell the same story; generating
+      everything from one in-memory model guarantees order IDs, ExecIDs,
+      quantities and timestamps agree across all three artefacts.
+    * Fixed random seed. The same run gives the same data, so the solutions and
+      README can quote exact results, and you can compare notes with others.
+    * Anomalies are injected into otherwise clean data. A trade support
+      analyst's job is to spot the exception in thousands of normal rows, so the
+      normal rows have to be genuinely clean (the self-check at the end proves
+      each anomaly appears exactly as designed and nothing else is broken).
+    * The anomalies share root causes, as in production: the dropped session at
+      15:40 explains BOTH the orphaned order and the duplicate ExecID. Real
+      breaks rarely arrive alone.
+    * Plain standard library only (sqlite3, random, datetime): nothing to
+      install, easy to read in an interview, runs anywhere.
 """
 
 import argparse
@@ -43,7 +60,9 @@ TRADE_DATE = datetime(2026, 11, 17)
 AS_OF = datetime(2026, 11, 18)    # "today" when deciding SETTLED vs PENDING
 OMS, BROKER = "ACME_OMS", "XBROKER"   # SenderCompID / TargetCompID
 HOST = "fix-gw01"
-rng = random.Random(20261117)     # fixed seed => reproducible data set
+rng = random.Random(20261117)     # fixed seed => reproducible data set (see "WHY" in the module docstring)
+# All timestamps are UTC, as on a real FIX gateway: SendingTime (tag 52) must be UTC,
+# and mixing local times is a classic cause of "the logs don't line up" confusion.
 
 
 def at(h, m, s=0, ms=0):
@@ -77,6 +96,11 @@ def quantize(px, tick):
 # Reference data
 # --------------------------------------------------------------------------- #
 # client_id, name, type, country, credit_limit_usd, tradable asset classes
+# WHY these clients: a spread of buy-side types (pension, hedge fund, insurer,
+# sovereign, corporate treasury...) because desks see very different flow from
+# each: corporates only do FX, pension funds trade large equity blocks, etc.
+# WHY Pinnacle's limit is only 25m: it is the client we push over its credit
+# limit in anomaly 5. Everyone else has headroom so no other order is rejected.
 CLIENTS = [
     ("C001", "Meridian Asset Management", "ASSET_MANAGER", "US", 500_000_000, ("EQUITY", "DERIVATIVE")),
     ("C002", "Northgate Pension Fund", "PENSION", "GB", 250_000_000, ("EQUITY", "FX")),
@@ -90,6 +114,11 @@ CLIENTS = [
 CLIENT_LIMIT = {c[0]: c[4] for c in CLIENTS}
 
 
+# WHY an Instrument record: every product-specific rule lives in one place -
+# tick size (price granularity), contract multiplier, venue, FIX SecurityType.
+# Getting these wrong is a real source of breaks: forgetting that one ES future
+# is worth 50x its quoted price is the classic notional error (see
+# docs/glossary/trade_lifecycle.md, "Contract multiplier").
 @dataclass(frozen=True)
 class Instrument:
     symbol: str          # FIX tag 55
@@ -143,29 +172,47 @@ def inst(symbol, desc=None):
 # Order specs: 5 anomaly orders + 2 session-reject cases + ~44 "normal" orders
 # --------------------------------------------------------------------------- #
 SPIKE_START, SPIKE_END = at(15, 2), at(15, 9)           # latency spike window
+# WHY blackouts: no normal orders are created while the session is down or being
+# recovered. Otherwise a random fill could land in the middle of the 15:40-15:42
+# incident and muddy the story (and the sequence-number arithmetic in the FIX log).
 BLACKOUTS = [(at(15, 33), at(15, 43, 30)),              # session drop / recovery
              (at(18, 9), at(18, 14))]                   # short venue restart
 
 
+# WHY anomalies are hand-written rather than random: each one needs an exact,
+# explainable cause and exact numbers (7,500 vs 6,000; 245.80 vs 245.08) so the
+# solutions can name them and so you can tell the story in an interview.
 def anomaly_specs():
     return [
         # 1. Orphan: sent during a silent TCP failure, never acked, never filled
+        #    REAL-WORLD CAUSE: the socket was dead but nothing had noticed yet, then the OMS
+        #    answered the broker's ResendRequest with a GapFill over the lost order.
         dict(ts=at(15, 41, 13, 400), client="C003", inst=inst("ES"), side="1", qty=40,
              otype="2", limit=6851.00, scenario="orphan"),
         # 2. Partial-fill mismatch: fills sum to 6,000 but OMS shows 7,500
+        #    REAL-WORLD CAUSE: a lost ExecutionReport or a manual OMS edit; the position is
+        #    overstated by 1,500 shares until someone reconciles against the broker.
         dict(ts=at(16, 5, 22, 120), client="C005", inst=inst("XOM"), side="1", qty=10_000,
              otype="2", limit=112.40, scenario="partial_mismatch",
              fill_plan=[(3500, 112.38), (2500, 112.36)]),
         # 3. Duplicate ExecID: filled just before the session dropped, replayed after
+        #    REAL-WORLD CAUSE: after reconnect the broker replays the fill with PossDup=Y and
+        #    the booking process does not de-duplicate on ExecID, so the position doubles.
         dict(ts=at(15, 40, 30), client="C001", inst=inst("MSFT"), side="1", qty=5000,
              otype="2", limit=428.40, scenario="dup_exec", fill_px=428.35, fill_delay=1.8),
         # 4. Settlement break: executed at 245.80, settled at 245.08 (digit transposition)
+        #    REAL-WORLD CAUSE: manual keying of the confirmation/settlement instruction.
+        #    Why a transposition: it is the textbook human error and is divisible-by-9 detectable.
         dict(ts=at(15, 27, 8, 340), client="C002", inst=inst("JPM"), side="1", qty=3000,
              otype="2", limit=245.85, scenario="price_discrepancy", fill_px=245.80),
         # 5. Broker reject: 150,000 x 190.00 = USD 28.5m vs Pinnacle's USD 25m limit
+        #    REAL-WORLD CAUSE: pre-trade credit check working as designed - not a fault, but
+        #    support still has to explain it to the client and route a limit request to credit.
         dict(ts=at(19, 3, 41, 770), client="C004", inst=inst("NVDA"), side="1", qty=150_000,
              otype="2", limit=190.00, scenario="risk_reject"),
-        # Session-level rejects (35=3) that are resent and then fill normally
+        # Session-level rejects (35=3) that are resent and then fill normally.
+        # WHY include them: they are NOT among the five anomalies. They teach you to tell an
+        # order reject (39=8) from a session reject (35=3) and to avoid false alarms.
         dict(ts=at(14, 44, 2, 100), client="C006", inst=inst("AAPL"), side="2", qty=2500,
              otype="2", limit=230.55, scenario="filled_single", session_reject="time"),
         dict(ts=at(16, 20, 11, 250), client="C007", inst=inst("CL"), side="1", qty=10,
@@ -184,6 +231,9 @@ def random_ts(i):
 
 
 def normal_specs():
+    # WHY a scenario mix: real days are mostly clean fills, with a tail of partials,
+    # still-working orders, cancels and "too late to cancel" races. The anomalies must
+    # hide among those, not stand out as the only unusual rows.
     scenarios = (["filled_single"] * 18 + ["filled_multi"] * 14 + ["partial_working"] * 3 +
                  ["working"] * 3 + ["cancelled"] * 4 + ["cancel_reject"] * 2)
     rng.shuffle(scenarios)
@@ -204,7 +254,8 @@ def normal_specs():
         limit = quantize(mid + skew if side == "1" else mid - skew, i.tick) if otype == "2" else None
         specs.append(dict(ts=random_ts(i), client=client[0], inst=i, side=side, qty=qty,
                           otype=otype, limit=limit, mid=mid, scenario=sc))
-    # Cluster six orders inside the latency-spike window
+    # Cluster six orders inside the latency-spike window. WHY: a spike is only visible in
+    # the logs if several orders are in flight while it happens; one slow ack is just noise.
     for n, spec in enumerate(specs[:6]):
         spec["ts"] = SPIKE_START + timedelta(seconds=10 + n * 55 + rng.uniform(0, 20))
         spec["ts"] = spec["ts"].replace(microsecond=spec["ts"].microsecond // 1000 * 1000)
@@ -219,23 +270,38 @@ sys_lines = []       # (timestamp, formatted syslog line)
 
 
 def emit(ts, direction, mtype, body=None, replay_of=None):
-    """Queue a FIX message. MsgSeqNum is assigned later, once everything is time-sorted."""
+    """Queue a FIX message. MsgSeqNum is assigned later, once everything is time-sorted.
+
+    WHY not number messages as we create them: orders are built one at a time, but on the wire
+    their messages interleave. A real session numbers messages in the order they are SENT, so we
+    sort by time first and number afterwards - otherwise the sequence would have bogus gaps.
+    """
     ev = dict(ts=ts, dir=direction, type=mtype, body=body, replay_of=replay_of, seq=None)
     events.append(ev)
     return ev
 
 
 def seq_of(ev):
-    return lambda: ev["seq"]          # resolved lazily after sequence numbers exist
+    # WHY lazy: a Reject (35=3) or ResendRequest (35=2) quotes another message's sequence number,
+    # which does not exist yet when we write the message. The lambda is evaluated at render time.
+    return lambda: ev["seq"]
 
 
 def render(ev):
-    """Build a complete FIX 4.2 string with correct BodyLength(9) and CheckSum(10)."""
+    """Build a complete FIX 4.2 string with correct BodyLength(9) and CheckSum(10).
+
+    WHY compute real 9 and 10 rather than fake them: tools/fix_parser.py validates both, so a
+    genuine log lets you practise spotting tampered or truncated messages, and it behaves like
+    production. BodyLength counts bytes after the 9= field up to the SOH before 10=; CheckSum is
+    the sum of all preceding bytes modulo 256, calculated with the REAL SOH (value 1), not '|'.
+    """
     orig = ev["replay_of"]
     body = ev["body"] if ev["body"] is not None else orig["body"]
     sender, target = (OMS, BROKER) if ev["dir"] == "OUT" else (BROKER, OMS)
     fields = [(35, ev["type"]), (49, sender), (56, target), (34, ev["seq"])]
     if orig:                                            # PossDup / resend semantics
+        # A replay keeps the ORIGINAL MsgSeqNum (34) and body (so the same ExecID 17), and adds
+        # 43=Y plus 122=OrigSendingTime. That is exactly what makes a duplicate detectable.
         fields += [(43, "Y"), (52, fix_time(ev["ts"])), (122, fix_time(orig["ts"]))]
     else:
         fields.append((52, fix_time(ev["ts"])))
@@ -247,6 +313,7 @@ def render(ev):
 
 
 def assign_sequence_numbers():
+    # Each direction (OMS->broker, broker->OMS) has its own independent counter, as in real FIX.
     nxt = {"OUT": 0, "IN": 0}
     for ev in events:
         if ev["replay_of"]:
@@ -371,13 +438,21 @@ def build_flow(o):
     else:
         o["d_event"] = emit(send_ts, "OUT", "D", new_order_body(o, i, send_ts))
     if kind is None and sc == "orphan":
+        # WHY we stop here: the order was written to the socket (35=D logged) but no ExecutionReport
+        # ever comes back, so the OMS leaves it in PendingNew (A) with no exchange order ID.
         return row                                    # <-- never acked: that's the anomaly
 
     # ---- 2. Broker response: reject or ack
+    # WHY latency is modelled: acks normally take single-digit milliseconds. Inside the
+    # 15:02-15:09 window the OMS pre-trade risk service is slow, so acks take 1-3 s. That is the
+    # raw material for the latency-triage exercises (grep/awk on ack_latency_ms).
     spiking = SPIKE_START <= o["ts"] <= SPIKE_END
     latency = rng.randint(900, 3400) if spiking else rng.randint(3, 28)
     t = send_ts + ms(latency)
     if sc == "risk_reject":
+        # A risk reject is an ORDER-level answer: ExecutionReport with 150=8 / 39=8 and
+        # OrdRejReason 103=3 (exceeds limit). OrderID (37) is "NONE" because the broker never
+        # booked the order - which is why exchange_order_id stays NULL in the database.
         notional = o["qty"] * o["limit"] * i.mult
         limit_usd = CLIENT_LIMIT[o["client"]]
         text = (f"Pre-trade risk check failed: order notional USD {notional:,.2f} exceeds "
@@ -540,8 +615,12 @@ CREATE TABLE clients (
     credit_limit_usd  REAL NOT NULL
 );
 
--- ord_status / side / order_type store the raw FIX codes (tags 39 / 54 / 40).
+-- WHY raw FIX codes (not friendly text): real OMS/ledger tables store what arrived on the wire,
+-- and a support analyst has to know the codes. The ref_* tables below translate them when needed.
 CREATE TABLE orders (
+    -- NB: no FOREIGN KEY from ord_status/side/order_type to the ref_* tables on purpose. Codes
+    -- come from the broker; if a venue starts sending a code we have not mapped, the row must
+    -- still be stored. You find such rows with a LEFT JOIN (bonus exercise B3).
     order_id           TEXT PRIMARY KEY,           -- FIX ClOrdID (tag 11)
     client_id          TEXT NOT NULL REFERENCES clients(client_id),
     symbol             TEXT NOT NULL,
@@ -563,8 +642,10 @@ CREATE TABLE orders (
     updated_ts         TEXT NOT NULL
 );
 
--- Fills only. Deliberately NO unique constraint on exec_id: de-duplication was
--- left to the application, as it often is in legacy trade ledgers.
+-- Fills only (not acks/cancels/rejects). WHY NO unique constraint on exec_id: de-duplication
+-- was left to the application, as it often is in legacy trade ledgers. If the database
+-- enforced it, the replayed fill would have bounced and anomaly 3 could not exist. Lesson:
+-- a missing constraint is a classic root cause - note it in your RCA recommendations.
 CREATE TABLE executions (
     row_id     INTEGER PRIMARY KEY AUTOINCREMENT,
     exec_id    TEXT NOT NULL,                      -- FIX ExecID (tag 17)
@@ -576,6 +657,9 @@ CREATE TABLE executions (
     exec_ts    TEXT NOT NULL
 );
 
+-- WHY settlements is its own table: settlement is a separate post-trade process with its own
+-- date (T+1/T+2), status and often its own system - and its own errors. Reconciling it
+-- back to executions is the core of trade support (Exercise 4).
 CREATE TABLE settlements (
     settlement_id  TEXT PRIMARY KEY,
     order_id       TEXT NOT NULL REFERENCES orders(order_id),
@@ -588,23 +672,61 @@ CREATE TABLE settlements (
     settle_status  TEXT NOT NULL                   -- SETTLED | PENDING
 );
 
+-- Reference (static) data. In production most joins are transaction table -> static data
+-- (instrument master, counterparty, status codes). Wrong or missing static data is itself a
+-- common cause of breaks. These small tables let you practise the join (bonus exercises).
+CREATE TABLE ref_ord_status (
+    code         TEXT PRIMARY KEY,                 -- FIX tag 39 value
+    name         TEXT NOT NULL,
+    description  TEXT NOT NULL,
+    is_terminal  INTEGER NOT NULL                  -- 1 = no further fills/changes expected
+);
+CREATE TABLE ref_side       (code TEXT PRIMARY KEY, name TEXT NOT NULL);   -- FIX tag 54
+CREATE TABLE ref_order_type (code TEXT PRIMARY KEY, name TEXT NOT NULL);   -- FIX tag 40
+
 CREATE INDEX ix_orders_client ON orders(client_id);
 CREATE INDEX ix_exec_order    ON executions(order_id);
 CREATE INDEX ix_settle_order  ON settlements(order_id);
 """
 
 
+# Codes per FIX 4.2 tag 39 (OrdStatus): the subset a desk sees in practice. Terminal means the
+# order is finished (filled, done for day, cancelled, replaced, rejected, expired).
+REF_ORD_STATUS = [
+    ("A", "PendingNew", "Sent to broker, no acknowledgement yet", 0),
+    ("0", "New", "Acknowledged and working, no fills yet", 0),
+    ("1", "PartiallyFilled", "Some quantity executed, remainder still working", 0),
+    ("2", "Filled", "Fully executed", 1),
+    ("3", "DoneForDay", "No more fills expected today", 1),
+    ("4", "Canceled", "Cancelled before (completely) filled", 1),
+    ("5", "Replaced", "Amended; superseded by a replacement order", 1),
+    ("6", "PendingCancel", "Cancel requested, not yet confirmed", 0),
+    ("8", "Rejected", "Refused by the broker/venue (risk, symbol, market closed...)", 1),
+    ("C", "Expired", "Time in force elapsed without a full fill", 1),
+    ("E", "PendingReplace", "Amend requested, not yet confirmed", 0),
+]
+REF_SIDE = [("1", "Buy"), ("2", "Sell")]
+REF_ORDER_TYPE = [("1", "Market"), ("2", "Limit")]
+
+
 def build_settlements(orders):
+    # WHY only Filled orders: settlement happens once a trade is complete. Partially filled or
+    # working orders have no settlement yet - so "Filled order with no settlement" is itself a
+    # useful reconciliation check.
     rows = []
     for o in orders:
         r = o["row"]
         if r["ord_status"] != "2":
             continue
         i = o["inst"]
-        price = r["avg_px"]                                  # settlements use the average executed price
+        # WHY average price: a settlement instruction is one line per order at the VWAP of its
+        # fills, not one per fill - which is why duplicate fills do not change the settled price.
+        price = r["avg_px"]
         if o["scenario"] == "price_discrepancy":
             price = 245.08                                   # executed 245.80, last two digits swapped
         notional = round(r["quantity"] * price * i.mult, 2)
+        # Settlement cycle: US-style T+1 for equities/derivatives; FX spot is T+2 except USD/CAD
+        # which settles T+1 (a genuine market convention).
         t_plus = 2 if (i.asset_class == "FX" and i.ccy != "CAD") else 1
         settle = TRADE_DATE + timedelta(days=t_plus)
         rows.append(dict(order_id=r["order_id"], trade_date=TRADE_DATE.strftime("%Y-%m-%d"),
@@ -623,6 +745,9 @@ def write_db(orders, settlements):
     con.execute("PRAGMA foreign_keys = ON")
     con.executescript(SCHEMA)
     con.executemany("INSERT INTO clients VALUES (?,?,?,?,?)", [c[:5] for c in CLIENTS])
+    con.executemany("INSERT INTO ref_ord_status VALUES (?,?,?,?)", REF_ORD_STATUS)
+    con.executemany("INSERT INTO ref_side VALUES (?,?)", REF_SIDE)
+    con.executemany("INSERT INTO ref_order_type VALUES (?,?)", REF_ORDER_TYPE)
 
     def insert(table, rows, cols):
         con.executemany(f"INSERT INTO {table} ({','.join(cols)}) VALUES ({','.join('?' * len(cols))})",
@@ -660,6 +785,9 @@ def write_logs():
 # --------------------------------------------------------------------------- #
 # Self-check: prove each anomaly exists exactly as designed
 # --------------------------------------------------------------------------- #
+# WHY a self-check: a data generator that silently produces the wrong anomaly wastes your
+# practice time. Each entry is "SQL that should find exactly N rows". Check 2 expects 2, not 1,
+# because the duplicate-ExecID order ALSO has executions > filled_qty - an honest side effect.
 CHECKS = {
     "1. orphaned order (status A, no exec)": (
         """SELECT o.order_id FROM orders o LEFT JOIN executions e ON e.order_id = o.order_id
@@ -676,6 +804,9 @@ CHECKS = {
     "5. rejected, credit limit (35=8, 39=8)": (
         """SELECT o.order_id FROM orders o JOIN clients c ON c.client_id = o.client_id
            WHERE o.ord_status = '8' AND o.quantity * o.limit_price * o.multiplier > c.credit_limit_usd""", 1),
+    "6. every order status code has reference data": (
+        """SELECT DISTINCT o.ord_status FROM orders o
+           LEFT JOIN ref_ord_status r ON r.code = o.ord_status WHERE r.code IS NULL""", 0),
 }
 
 
@@ -696,7 +827,8 @@ def main():
     parser.add_argument("--answer-key", action="store_true", help="print the order/exec IDs of the injected anomalies")
     args = parser.parse_args()
 
-    # Order IDs run in creation-time order, like a real OMS
+    # WHY sort before numbering: a real OMS issues ClOrdIDs in the order orders are created, so
+    # ORD-100001 is the earliest of the day. It also means anomaly IDs are not a giveaway.
     specs = anomaly_specs() + normal_specs()
     specs.sort(key=lambda s: s["ts"])
     for n, s in enumerate(specs, 100001):
@@ -709,20 +841,23 @@ def main():
     dup = next(o for o in orders if o["scenario"] == "dup_exec")
     build_session_and_incidents(orphan, dup)
 
-    # Duplicate booking: the replayed ExecutionReport is booked a second time
+    # Duplicate booking: the replayed ExecutionReport is booked a second time.
+    # WHY a deep copy of the same exec_id/qty/px with a later timestamp: that is exactly what a
+    # booking process without de-duplication produces - an identical row booked at replay time.
     dup_fill = dict(dup["fills"][0])
     dup_fill["exec_ts"] = dup["replay_ts"]
     executions.append(dup_fill)
     dup["row"]["updated_ts"] = max(dup["row"]["updated_ts"], dup["replay_ts"])
 
-    events.sort(key=lambda e: e["ts"])        # stable: same-timestamp messages keep emit order
+    # Sort by time, THEN number: see emit(). Stable sort keeps same-timestamp messages in emit order.
+    events.sort(key=lambda e: e["ts"])
     assign_sequence_numbers()
     settlements = build_settlements(orders)
     con = write_db(orders, settlements)
     n_fix, n_sys = write_logs()
 
     print(f"Database : {DB_PATH.relative_to(ROOT)}")
-    for t in ("clients", "orders", "executions", "settlements"):
+    for t in ("clients", "orders", "executions", "settlements", "ref_ord_status"):
         print(f"  {t:<12} {con.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0]:>4} rows")
     print(f"FIX log  : {FIX_LOG.relative_to(ROOT)}  ({n_fix} messages)")
     print(f"Sys log  : {SYS_LOG.relative_to(ROOT)}  ({n_sys} lines)")
