@@ -1,0 +1,58 @@
+Nov 17 06:59:50 fix-gw01 fixgateway[2281]: INFO  Starting fixgateway 4.8.2 session=ACME_OMS->XBROKER version=FIX.4.2 HeartBtInt=30
+Nov 17 06:59:52 fix-gw01 fixgateway[2281]: INFO  Connecting to XBROKER 10.20.4.17:9876
+Nov 17 06:59:56 fix-gw01 fixgateway[2281]: INFO  TCP connected, sending Logon MsgSeqNum=1
+Nov 17 06:59:57 fix-gw01 fixgateway[2281]: INFO  Logon acknowledged by XBROKER, session ACTIVE
+Nov 17 09:15:01 fix-gw01 CRON[8841]: (fixsvc) CMD (/opt/fixgw/bin/rotate_audit.sh)
+Nov 17 14:21:07 fix-gw01 chronyd[611]: Can't synchronise: no selectable sources
+Nov 17 14:44:02 fix-gw01 fixgateway[2281]: WARN  Session-level Reject received RefSeqNum=9 RefMsgType=D SessionRejectReason=10 (SendingTime accuracy problem) ClOrdID=ORD-100008
+Nov 17 14:44:03 fix-gw01 chronyd[611]: Selected source 10.20.0.5 (ntp1.corp.example)
+Nov 17 14:44:03 fix-gw01 chronyd[611]: System clock wrong by 2.412417 seconds, adjustment started
+Nov 17 14:44:05 fix-gw01 fixgateway[2281]: INFO  Resending rejected order ClOrdID=ORD-100008 after correction
+Nov 17 15:01:48 fix-gw01 oms-core[2310]: WARN  pre-trade risk service slow: p99=2140ms threshold_ms=300
+Nov 17 15:01:49 fix-gw01 oms-core[2310]: WARN  outbound order queue depth=412 high_water=250
+Nov 17 15:02:19 fix-gw01 fixgateway[2281]: WARN  ack latency exceeded threshold ClOrdID=ORD-100010 ack_latency_ms=3160 threshold_ms=250
+Nov 17 15:03:22 fix-gw01 fixgateway[2281]: WARN  ack latency exceeded threshold ClOrdID=ORD-100011 ack_latency_ms=1760 threshold_ms=250
+Nov 17 15:03:28 fix-gw01 fixgateway[2281]: WARN  ack latency exceeded threshold ClOrdID=ORD-100012 ack_latency_ms=1833 threshold_ms=250
+Nov 17 15:03:36 fix-gw01 fixgateway[2281]: WARN  OrderCancelReject ClOrdID=ORD-100012-CXL OrigClOrdID=ORD-100012 (too late to cancel)
+Nov 17 15:04:11 fix-gw01 fixgateway[2281]: WARN  ack latency exceeded threshold ClOrdID=ORD-100013 ack_latency_ms=909 threshold_ms=250
+Nov 17 15:05:16 fix-gw01 fixgateway[2281]: WARN  ack latency exceeded threshold ClOrdID=ORD-100014 ack_latency_ms=1927 threshold_ms=250
+Nov 17 15:06:02 fix-gw01 fixgateway[2281]: WARN  ack latency exceeded threshold ClOrdID=ORD-100015 ack_latency_ms=3306 threshold_ms=250
+Nov 17 15:06:59 fix-gw01 fixgateway[2281]: WARN  ack latency exceeded threshold ClOrdID=ORD-100016 ack_latency_ms=1466 threshold_ms=250
+Nov 17 15:09:31 fix-gw01 oms-core[2310]: INFO  pre-trade risk service latency back to normal: p99=41ms
+Nov 17 15:09:32 fix-gw01 oms-core[2310]: INFO  outbound order queue drained depth=0
+Nov 17 15:40:44 fix-gw01 kernel: nf_conntrack: nf_conntrack: table full, dropping packet
+Nov 17 15:40:51 fix-gw01 kernel: nf_conntrack: nf_conntrack: table full, dropping packet
+Nov 17 15:41:03 fix-gw01 kernel: nf_conntrack: nf_conntrack: table full, dropping packet
+Nov 17 15:41:18 fix-gw01 fixgateway[2281]: WARN  No data from XBROKER for 36s (HeartBtInt=30), sending TestRequest 112=TEST-154118 MsgSeqNum=32
+Nov 17 15:41:48 fix-gw01 fixgateway[2281]: ERROR TestRequest timeout: no Heartbeat within 30s, closing session
+Nov 17 15:41:48 fix-gw01 fixgateway[2281]: ERROR Session ACME_OMS->XBROKER DISCONNECTED reason=HEARTBEAT_TIMEOUT
+Nov 17 15:41:53 fix-gw01 fixgateway[2281]: INFO  Reconnect attempt 1/10 to 10.20.4.17:9876
+Nov 17 15:41:53 fix-gw01 fixgateway[2281]: ERROR connect() failed: Connection refused (ECONNREFUSED)
+Nov 17 15:42:03 fix-gw01 fixgateway[2281]: INFO  Reconnect attempt 2/10 to 10.20.4.17:9876
+Nov 17 15:42:08 fix-gw01 fixgateway[2281]: ERROR connect() failed: Connection timed out (ETIMEDOUT)
+Nov 17 15:42:08 fix-gw01 fixgateway[2281]: INFO  Reconnect attempt 3/10 to 10.20.4.17:9876
+Nov 17 15:42:09 fix-gw01 fixgateway[2281]: INFO  TCP connected, sending Logon
+Nov 17 15:42:09 fix-gw01 fixgateway[2281]: INFO  Logon acknowledged by XBROKER, session ACTIVE
+Nov 17 15:42:09 fix-gw01 fixgateway[2281]: WARN  ResendRequest received BeginSeqNo=30 EndSeqNo=0
+Nov 17 15:42:09 fix-gw01 fixgateway[2281]: INFO  Sent SequenceReset-GapFill NewSeqNo=33 (replaced 3 messages)
+Nov 17 15:42:09 fix-gw01 oms-core[2310]: WARN  seq store checkpoint older than last processed inbound seq, requesting resend BeginSeqNo=56
+Nov 17 15:42:09 fix-gw01 fixgateway[2281]: INFO  Received 1 replayed message with PossDupFlag=Y MsgSeqNum=56
+Nov 17 15:42:09 fix-gw01 oms-core[2310]: INFO  Session recovered, inbound queue resynced
+Nov 17 15:47:00 fix-gw01 oms-core[2310]: WARN  1 order(s) in PENDING_NEW for >347s ClOrdID=ORD-100021 (sent 15:41:13) no ExecutionReport received
+Nov 17 15:52:00 fix-gw01 oms-core[2310]: WARN  1 order(s) in PENDING_NEW for >647s ClOrdID=ORD-100021 (sent 15:41:13) no ExecutionReport received
+Nov 17 15:57:00 fix-gw01 oms-core[2310]: WARN  1 order(s) in PENDING_NEW for >947s ClOrdID=ORD-100021 (sent 15:41:13) no ExecutionReport received
+Nov 17 16:20:11 fix-gw01 fixgateway[2281]: WARN  Session-level Reject received RefSeqNum=40 RefMsgType=D SessionRejectReason=1 (Conditionally required field missing) ClOrdID=ORD-100026
+Nov 17 16:20:14 fix-gw01 fixgateway[2281]: INFO  Resending rejected order ClOrdID=ORD-100026 after correction
+Nov 17 16:55:12 fix-gw01 fixgateway[2281]: WARN  Heartbeat round-trip 388ms threshold_ms=250
+Nov 17 17:30:02 fix-gw01 fixgateway[2281]: WARN  disk usage on /var/log at 81%
+Nov 17 18:12:05 fix-gw01 fixgateway[2281]: INFO  Logout received from XBROKER: "Scheduled venue maintenance restart"
+Nov 17 18:12:05 fix-gw01 fixgateway[2281]: WARN  Session ACME_OMS->XBROKER DISCONNECTED reason=PEER_LOGOUT
+Nov 17 18:12:12 fix-gw01 fixgateway[2281]: INFO  Reconnect attempt 1/10 to 10.20.4.17:9876
+Nov 17 18:12:12 fix-gw01 fixgateway[2281]: ERROR connect() failed: Connection refused (ECONNREFUSED)
+Nov 17 18:12:17 fix-gw01 fixgateway[2281]: INFO  Reconnect attempt 2/10 to 10.20.4.17:9876
+Nov 17 18:12:17 fix-gw01 fixgateway[2281]: INFO  TCP connected, sending Logon
+Nov 17 18:12:18 fix-gw01 fixgateway[2281]: INFO  Logon acknowledged by XBROKER, session ACTIVE
+Nov 17 19:03:41 fix-gw01 fixgateway[2281]: WARN  Order rejected by XBROKER ClOrdID=ORD-100037 OrdStatus=8 OrdRejReason=3 (Pre-trade credit limit breach) client=C004
+Nov 17 19:14:40 fix-gw01 fixgateway[2281]: WARN  OrderCancelReject ClOrdID=ORD-100039-CXL OrigClOrdID=ORD-100039 (too late to cancel)
+Nov 17 20:00:01 fix-gw01 CRON[8841]: (fixsvc) CMD (/opt/fixgw/bin/rotate_audit.sh)
+Nov 17 21:05:00 fix-gw01 fixgateway[2281]: INFO  Session ACME_OMS->XBROKER closed normally (end of day)
